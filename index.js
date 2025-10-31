@@ -1,105 +1,158 @@
+// ==================== server.js ====================
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-const { sequelize } = require('./models');
-const routes = require('./routes');
-const scrapingJob = require('./jobs/scrapingJob');
+const sequelize = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
-const requestLogger = require('./middleware/requestLogger');
+const loggingMiddleware = require('./middleware/logging');
+
+// Routes
+const authRoutes = require('./routes/authRoutes');
+const dishRoutes = require('./routes/dishRoutes');
+const searchRoutes = require('./routes/searchRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const recommendationRoutes = require('./routes/recommendationRoutes');
+
+// Services
+const scrapingJob = require('./jobs/scrapingJob');
 
 const app = express();
+const PORT = process.env.PORT || 5000;
 
-// Security middleware
+// ============== MIDDLEWARE ==============
+
+// Security
 app.use(helmet());
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+  origin: process.env.APP_URL || 'http://localhost:3000',
   credentials: true
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
-});
-app.use(limiter);
-
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Logging
-app.use(requestLogger);
+app.use(loggingMiddleware);
 
-// Routes
-app.use('/api', routes);
+// ============== ROUTES ==============
+
+app.use('/api/auth', authRoutes);
+app.use('/api/dishes', dishRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/recommendations', recommendationRoutes);
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/api/health', (req, res) => {
   res.json({ 
-    status: 'OK', 
+    status: 'ok',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
-    scraping: scrapingJob.isRunning ? 'RUNNING' : 'IDLE'
+    scrapingEnabled: process.env.SCRAPING_ENABLED === 'true'
   });
 });
 
-// Scraping status endpoint
-app.get('/api/scraping/status', (req, res) => {
-  res.json(scrapingJob.getStatus());
+// Public status endpoint
+app.get('/api/public/status', (req, res) => {
+  const scrapingJob = require('./jobs/scrapingJob');
+  const status = scrapingJob.getStatus();
+  
+  res.json({
+    scraping: {
+      isRunning: status.isRunning,
+      nextRun: 'every 4 hours',
+      lastRun: status.lastRun
+    },
+    apis: {
+      spoonacular: !!process.env.SPOONACULAR_API_KEY ? 'connected' : 'not configured',
+      edamam: (process.env.EDAMAM_APP_ID && process.env.EDAMAM_APP_KEY) ? 'connected' : 'not configured',
+      groq: !!process.env.GROQ_API_KEY ? 'connected' : 'not configured'
+    },
+    database: 'connected',
+    version: '2.0.0'
+  });
 });
 
-// Error handling
-app.use(errorHandler);
+// ============== ERROR HANDLING ==============
 
 // 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Route not found' });
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'Route not found',
+    path: req.originalUrl
+  });
 });
 
-const PORT = process.env.PORT || 3000;
+// Global error handler
+app.use(errorHandler);
+
+// ============== DATABASE SYNC & SERVER START ==============
 
 const startServer = async () => {
   try {
+    // Test database connection
     await sequelize.authenticate();
-    console.log('✅ Database connected successfully');
-    
-    // Sync database
-    await sequelize.sync({ 
-      force: process.env.NODE_ENV === 'development' && process.env.DB_FORCE_SYNC === 'true'
-    });
-    console.log('✅ Database synchronized');
+    console.log('✅ Database connection established');
 
-    // Start scraping jobs
-    scrapingJob.start();
+    // Sync database models
+    await sequelize.sync({ alter: false });
+    console.log('✅ Database models synchronized');
 
+    // Start server
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
-      console.log(`📊 Health check: http://localhost:${PORT}/health`);
-      console.log(`🔍 Scraping enabled: ${process.env.SCRAPING_ENABLED}`);
+      console.log(`\n🚀 Server running on http://localhost:${PORT}`);
+      console.log(`📝 Environment: ${process.env.NODE_ENV}`);
+      console.log(`🔄 Scraping enabled: ${process.env.SCRAPING_ENABLED === 'true' ? 'Yes' : 'No'}`);
+      
+      // Start scraping job if enabled
+      if (process.env.SCRAPING_ENABLED === 'true') {
+        scrapingJob.start();
+      }
+
+      // Display API status
+      console.log('\n📡 Connected APIs:');
+      console.log(`  ✓ Spoonacular: ${process.env.SPOONACULAR_API_KEY ? 'Configured' : '⚠️  Not configured'}`);
+      console.log(`  ✓ Edamam: ${process.env.EDAMAM_APP_ID ? 'Configured' : '⚠️  Not configured'}`);
+      console.log(`  ✓ Groq: ${process.env.GROQ_API_KEY ? 'Configured' : '⚠️  Not configured (AI disabled)'}`);
+      
+      console.log('\n📚 Available Endpoints:');
+      console.log('  POST   /api/auth/register - Register new user');
+      console.log('  POST   /api/auth/login - Login user');
+      console.log('  GET    /api/dishes - Get all dishes');
+      console.log('  GET    /api/search - Search dishes');
+      console.log('  GET    /api/recommendations/personalized - Get AI recommendations');
+      console.log('  GET    /api/recommendations/suggestions - Get meal suggestions');
+      console.log('  POST   /api/admin/scrape/trigger - Trigger scraping (admin)');
+      console.log('  GET    /api/health - Health check');
+      console.log('  GET    /api/public/status - Public status\n');
     });
+
   } catch (error) {
-    console.error('❌ Server startup failed:', error);
+    console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 };
 
-// Handle graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('🛑 Shutting down server gracefully...');
+// ============== GRACEFUL SHUTDOWN ==============
+
+process.on('SIGTERM', async () => {
+  console.log('\n⏹️  SIGTERM signal received: closing HTTP server');
   await sequelize.close();
   process.exit(0);
 });
 
-process.on('SIGTERM', async () => {
-  console.log('🛑 Server terminated');
+process.on('SIGINT', async () => {
+  console.log('\n⏹️  SIGINT signal received: closing HTTP server');
   await sequelize.close();
   process.exit(0);
 });
+
+// ============== START APPLICATION ==============
 
 startServer();
 
