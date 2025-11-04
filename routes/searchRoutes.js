@@ -4,7 +4,7 @@ const searchController = require('../controllers/searchController');
 const { authenticate } = require('../middleware/auth');
 
 // Public routes
-router.get('/', searchController.searchDishes);
+router.get('/dishes', searchController.searchDishes);
 router.get('/suggestions', searchController.getSearchSuggestions);
 router.get('/trending', searchController.getTrendingSearches);
 

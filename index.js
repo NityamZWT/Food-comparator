@@ -7,7 +7,7 @@ require('dotenv').config();
 
 const sequelize = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
-const loggingMiddleware = require('./middleware/logging');
+const loggingMiddleware = require('./middleware/requestLogger');
 
 // Routes
 const authRoutes = require('./routes/authRoutes');

@@ -1,3 +1,4 @@
+// ...existing code...
 module.exports = {
   initialize(sequelize, DataTypes) {
     const PriceHistory = sequelize.define('PriceHistory', {
@@ -23,26 +24,24 @@ module.exports = {
       availability: {
         type: DataTypes.BOOLEAN,
         defaultValue: true
-      },
-      scraped_at: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW
       }
     }, {
-      tableName: 'price_history',
-      indexes: [
-        { fields: ['dish_id', 'scraped_at'] }
-      ]
+      tableName: 'price_histories',
+      timestamps: true,
+      createdAt: 'created_at',
+      updatedAt: false
     });
 
     return PriceHistory;
   },
 
   associate(models) {
-    const { PriceHistory, Dish } = models;
-    PriceHistory.belongsTo(Dish, {
-      foreignKey: 'dish_id',
-      as: 'dish'
-    });
+    if (models.PriceHistory && models.Dish) {
+      models.PriceHistory.belongsTo(models.Dish, {
+        foreignKey: 'dish_id',
+        as: 'dish'
+      });
+    }
   }
 };
+// ...existing code...

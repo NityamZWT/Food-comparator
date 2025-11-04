@@ -1,6 +1,8 @@
 const scrapingService = require('../services/scrapingService');
 const scrapingJob = require('../jobs/scrapingJob');
 const response = require('../utils/response');
+const { sequelize, Dish, PriceHistory } = require('../models'); // added sequelize import
+
 
 exports.triggerScraping = async (req, res, next) => {
   try {
@@ -32,8 +34,6 @@ exports.getScrapingStatus = async (req, res, next) => {
 
 exports.getScrapingStats = async (req, res, next) => {
   try {
-    const { Dish, PriceHistory } = require('../models');
-    
     const totalDishes = await Dish.count();
     const totalPriceRecords = await PriceHistory.count();
     const platforms = await Dish.findAll({

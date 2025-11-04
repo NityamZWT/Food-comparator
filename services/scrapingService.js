@@ -1,323 +1,326 @@
-// ==================== scrapingService.js ====================
-// Real-world alternatives to web scraping for learning projects
-
-const axios = require('axios');
-const { Dish, PriceHistory } = require('../models');
-const { Op } = require('sequelize');
+// ...existing code...
+const axios = require("axios");
+const { Dish, PriceHistory, sequelize } = require("../models");
 
 class ScrapingService {
   constructor() {
-    this.apiSources = {
-      spoonacular: process.env.SPOONACULAR_API_KEY, // Free tier: 150 requests/day
-      edamam: {
-        app_id: process.env.EDAMAM_APP_ID,
-        app_key: process.env.EDAMAM_APP_KEY
-      },
-      mock: true // Fallback to enhanced mock data
+    this.apiKeys = {
+      spoonacular: process.env.SPOONACULAR_API_KEY,
+      edamamAppId: process.env.EDAMAM_APP_ID,
+      edamamAppKey: process.env.EDAMAM_APP_KEY,
     };
+    this.minItemsBeforeMock = 10;
   }
 
-  // ============== REAL API: Spoonacular (Recommended) ==============
-  async scrapeFromSpoonacular(location = 'Mumbai') {
+  async scrapeFromSpoonacular(location = "Mumbai") {
     const scrapedItems = [];
-    
+    if (!this.apiKeys.spoonacular) return scrapedItems;
+
     try {
-      console.log(`🥘 Fetching from Spoonacular API for ${location}...`);
-      
-      // Get random recipes
-      const response = await axios.get(
-        'https://api.spoonacular.com/recipes/random',
+      const res = await axios.get(
+        "https://api.spoonacular.com/recipes/random",
         {
           params: {
-            apiKey: this.apiSources.spoonacular,
+            apiKey: this.apiKeys.spoonacular,
             number: 20,
-            tags: 'breakfast,lunch,dinner'
-          }
+            tags: "breakfast,lunch,dinner",
+          },
+          timeout: 15000,
         }
       );
 
-      for (const recipe of response.data.recipes) {
-        // Estimate price based on servings and ingredients
-        const estimatedPrice = this.estimatePrice(recipe.servings, recipe.extendedIngredients?.length || 0);
-        
+      for (const recipe of res.data.recipes || []) {
+        const estimatedPrice = this.estimatePrice(
+          recipe.servings,
+          recipe.extendedIngredients?.length || 0
+        );
         scrapedItems.push({
           name: recipe.title,
-          platform: 'api_spoonacular',
+          platform: "spoonacular",
           price: estimatedPrice,
-          original_price: estimatedPrice * 1.2,
-          discount_percent: 17,
-          rating: 4.0 + (Math.random() * 1.0),
-          restaurant_store_name: 'Spoonacular Recipe',
-          category: 'food',
+          original_price: Math.round(estimatedPrice * 1.2),
+          discount_percent: 15,
+          rating: 4.0 + Math.random() * 1.0,
+          restaurant_store_name: "Spoonacular",
+          category: "food",
           cuisine: this.detectCuisineFromRecipe(recipe),
-          location: location,
+          location,
           platform_url: recipe.sourceUrl,
-          description: recipe.summary?.substring(0, 200) || `Delicious ${recipe.title}`,
-          image_url: recipe.image,
+          description: (recipe.summary || "")
+            .replace(/<[^>]+>/g, "")
+            .slice(0, 300),
+          image_url: recipe.image || null,
           dietary_info: JSON.stringify({
-            vegetarian: recipe.vegetarian,
-            vegan: recipe.vegan,
-            glutenFree: recipe.glutenFree,
-            dairyFree: recipe.dairyFree,
+            vegetarian: !!recipe.vegetarian,
+            vegan: !!recipe.vegan,
+            glutenFree: !!recipe.glutenFree,
             servings: recipe.servings,
-            prepTime: recipe.preparationMinutes,
-            cookTime: recipe.cookingMinutes
-          })
+          }),
         });
       }
-
-      console.log(`✅ Spoonacular: ${scrapedItems.length} items fetched`);
-      return scrapedItems;
-
-    } catch (error) {
-      console.error('❌ Spoonacular API failed:', error.message);
-      return [];
+    } catch (err) {
+      console.error("Spoonacular error:", err.message);
     }
-  }
-
-  // ============== REAL API: Edamam (Nutritional Data) ==============
-  async scrapeFromEdamam(location = 'Mumbai') {
-    const scrapedItems = [];
-    
-    try {
-      console.log(`🥗 Fetching from Edamam API for ${location}...`);
-      
-      const cuisines = ['Indian', 'Italian', 'Chinese', 'Mexican', 'American'];
-      const dishTypes = ['lunch', 'dinner', 'snack'];
-      
-      for (const cuisine of cuisines.slice(0, 2)) { // Limit to stay within free tier
-        for (const dishType of dishTypes.slice(0, 1)) {
-          try {
-            const response = await axios.get(
-              'https://api.edamam.com/search',
-              {
-                params: {
-                  type: 'public',
-                  q: `${cuisine} ${dishType}`,
-                  app_id: this.apiSources.edamam.app_id,
-                  app_key: this.apiSources.edamam.app_key,
-                  to: 10
-                }
-              }
-            );
-
-            for (const hit of response.data.hits.slice(0, 5)) {
-              const recipe = hit.recipe;
-              const estimatedPrice = this.estimatePrice(recipe.yield, recipe.ingredientLines?.length || 0);
-
-              scrapedItems.push({
-                name: recipe.label,
-                platform: 'api_edamam',
-                price: estimatedPrice,
-                original_price: estimatedPrice * 1.15,
-                discount_percent: 12,
-                rating: 4.1 + (Math.random() * 0.9),
-                restaurant_store_name: 'Edamam Recipe',
-                category: 'food',
-                cuisine: cuisine,
-                location: location,
-                platform_url: recipe.url,
-                description: `Nutritious ${recipe.label} with ${recipe.ingredientLines?.length || 0} ingredients`,
-                image_url: recipe.image,
-                dietary_info: JSON.stringify({
-                  calories: Math.round(recipe.calories / recipe.yield),
-                  protein: recipe.totalNutrients.PROCNT?.quantity?.toFixed(1) || 'N/A',
-                  carbs: recipe.totalNutrients.CHOCDF?.quantity?.toFixed(1) || 'N/A',
-                  fat: recipe.totalNutrients.FAT?.quantity?.toFixed(1) || 'N/A',
-                  healthLabels: recipe.healthLabels?.slice(0, 5) || []
-                })
-              });
-            }
-
-            // Rate limiting
-            await this.delay(1000);
-
-          } catch (err) {
-            console.log(`⚠️ Error fetching ${cuisine}:`, err.message);
-          }
-        }
-      }
-
-      console.log(`✅ Edamam: ${scrapedItems.length} items fetched`);
-      return scrapedItems;
-
-    } catch (error) {
-      console.error('❌ Edamam API failed:', error.message);
-      return [];
-    }
-  }
-
-  // ============== MOCK DATA (Fallback) ==============
-  async generateMockData(location = 'Mumbai') {
-    const scrapedItems = [];
-    
-    const mockDishes = [
-      { name: 'Butter Chicken', cuisine: 'Indian', basePrice: 320, platform: 'mock_swiggy' },
-      { name: 'Margherita Pizza', cuisine: 'Italian', basePrice: 299, platform: 'mock_swiggy' },
-      { name: 'Chicken Fried Rice', cuisine: 'Chinese', basePrice: 180, platform: 'mock_swiggy' },
-      { name: 'Paneer Tikka Masala', cuisine: 'Indian', basePrice: 280, platform: 'mock_zomato' },
-      { name: 'Caesar Salad', cuisine: 'Italian', basePrice: 220, platform: 'mock_zomato' },
-      { name: 'Amul Milk 1L', cuisine: null, basePrice: 55, platform: 'mock_blinkit', category: 'grocery' },
-      { name: 'Basmati Rice 1kg', cuisine: null, basePrice: 85, platform: 'mock_blinkit', category: 'grocery' },
-      { name: 'Fresh Eggs Pack', cuisine: null, basePrice: 45, platform: 'mock_instamart', category: 'grocery' }
-    ];
-
-    for (const dish of mockDishes) {
-      const discount = Math.floor(Math.random() * 25) + 10;
-      const originalPrice = dish.basePrice * (1 + discount / 100);
-
-      scrapedItems.push({
-        name: dish.name,
-        platform: dish.platform,
-        price: dish.basePrice,
-        original_price: originalPrice,
-        discount_percent: discount,
-        rating: 4.0 + (Math.random() * 1.0),
-        restaurant_store_name: dish.platform.split('_')[1].charAt(0).toUpperCase() + dish.platform.split('_')[1].slice(1),
-        category: dish.category || 'food',
-        cuisine: dish.cuisine || 'multi-cuisine',
-        location: location,
-        platform_url: `https://${dish.platform.split('_')[1]}.com`,
-        description: `${dish.name} - Great value for money`,
-        image_url: null,
-        dietary_info: JSON.stringify({})
-      });
-    }
-
-    console.log(`✅ Mock Data: ${scrapedItems.length} items generated`);
     return scrapedItems;
   }
 
-  // ============== MAIN SCRAPING ORCHESTRATOR ==============
-  async scrapeAllPlatforms(location = 'Mumbai') {
-    console.log(`🔄 Starting scraping cycle for ${location} at ${new Date().toISOString()}`);
-    
-    const results = {
-      totalScraped: 0,
-      platformResults: {},
-      errors: []
-    };
+  // ...existing code...
+  async scrapeFromEdamam(location = "Mumbai") {
+    const scrapedItems = [];
+    if (!this.apiKeys.edamamAppId || !this.apiKeys.edamamAppKey)
+      return scrapedItems;
 
-    try {
-      // Try Spoonacular first (best for food data)
-      if (this.apiSources.spoonacular) {
-        try {
-          const spoonacularItems = await this.scrapeFromSpoonacular(location);
-          results.platformResults.spoonacular = spoonacularItems;
-          results.totalScraped += spoonacularItems.length;
-          await this.saveScrapedItems(spoonacularItems);
-        } catch (error) {
-          results.errors.push({ platform: 'spoonacular', error: error.message });
-        }
-      }
+    const cuisines = ["Indian", "Italian"];
 
-      // Try Edamam (nutritional data)
-      if (this.apiSources.edamam.app_id && this.apiSources.edamam.app_key) {
-        try {
-          const edamamItems = await this.scrapeFromEdamam(location);
-          results.platformResults.edamam = edamamItems;
-          results.totalScraped += edamamItems.length;
-          await this.saveScrapedItems(edamamItems);
-        } catch (error) {
-          results.errors.push({ platform: 'edamam', error: error.message });
-        }
-      }
+    for (const cuisine of cuisines) {
+      const q = `${cuisine} recipe`;
 
-      // If results are low, add mock data
-      if (results.totalScraped < 10) {
-        console.log('⚠️ Low API results, adding mock data...');
-        const mockItems = await this.generateMockData(location);
-        results.platformResults.mock = mockItems;
-        results.totalScraped += mockItems.length;
-        await this.saveScrapedItems(mockItems);
-      }
-
-      console.log(`🎉 Scraping completed: ${results.totalScraped} total items`);
-      return results;
-
-    } catch (error) {
-      console.error('💥 Scraping cycle failed:', error);
-      throw error;
-    }
-  }
-
-  // ============== HELPERS ==============
-  estimatePrice(servings = 2, ingredientCount = 5) {
-    const basePrice = 100;
-    const pricePerServing = 80;
-    const pricePerIngredient = 15;
-    
-    return Math.round(basePrice + (servings * pricePerServing) + (ingredientCount * pricePerIngredient));
-  }
-
-  detectCuisineFromRecipe(recipe) {
-    const cuisines = {
-      indian: ['curry', 'tandoori', 'biryani', 'tikka', 'paneer', 'naan'],
-      italian: ['pasta', 'pizza', 'risotto', 'lasagna'],
-      chinese: ['noodles', 'soy', 'wok', 'fried rice'],
-      mexican: ['taco', 'burrito', 'quesadilla'],
-      american: ['burger', 'sandwich', 'bbq']
-    };
-
-    const title = recipe.title?.toLowerCase() || '';
-    
-    for (const [cuisine, keywords] of Object.entries(cuisines)) {
-      if (keywords.some(k => title.includes(k))) {
-        return cuisine;
-      }
-    }
-    return 'multi-cuisine';
-  }
-
-  async saveScrapedItems(items) {
-    let savedCount = 0;
-    
-    for (const itemData of items) {
       try {
-        const [dish, created] = await Dish.findOrCreate({
-          where: {
-            name: itemData.name,
-            platform: itemData.platform,
-            location: itemData.location
+        // Try v2 with user header
+        const v2Url = "https://api.edamam.com/api/recipes/v2";
+
+        const headers = {
+          "Edamam-Account-User": "default-user", // Add this required header
+        };
+
+        const res = await axios.get(v2Url, {
+          headers, // Add headers here
+          params: {
+            type: "public",
+            q,
+            app_id: this.apiKeys.edamamAppId,
+            app_key: this.apiKeys.edamamAppKey,
+            to: 5, // Reduced for testing
           },
-          defaults: itemData
+          timeout: 15000,
         });
 
-        if (!created) {
-          await dish.update({
-            price: itemData.price,
-            original_price: itemData.original_price,
-            discount_percent: itemData.discount_percent,
-            rating: itemData.rating,
-            availability: true,
-            updated_at: new Date()
+        console.log(
+          `✅ Edamam v2 success for ${cuisine}:`,
+          res.data.hits?.length || 0,
+          "recipes"
+        );
+
+        const hits = res.data.hits || [];
+        for (const hit of hits) {
+          const recipe = hit.recipe;
+          if (!recipe) continue;
+
+          const servings = Math.max(1, Math.round(recipe.yield || 2));
+          const estimatedPrice = this.estimatePrice(
+            servings,
+            recipe.ingredients?.length || 5
+          );
+
+          const imageUrl = recipe.image ? recipe.image.substring(0, 500) : null;
+
+          scrapedItems.push({
+            name: recipe.label || "Unknown Recipe",
+            platform: "edamam",
+            price: estimatedPrice,
+            original_price: Math.round(estimatedPrice * 1.15),
+            discount_percent: 12,
+            rating: 4.0 + Math.random() * 1.0,
+            restaurant_store_name: "Edamam",
+            category: "food",
+            cuisine,
+            location,
+            platform_url: recipe.url || null,
+            description: recipe.label
+              ? `${recipe.label} - ${cuisine} cuisine`
+              : `${cuisine} recipe`,
+            image_url: imageUrl,
+            dietary_info: JSON.stringify({
+              caloriesPerServing:
+                recipe.calories && recipe.yield
+                  ? Math.round(recipe.calories / recipe.yield)
+                  : null,
+              healthLabels: recipe.healthLabels?.slice(0, 5) || [],
+              dietLabels: recipe.dietLabels?.slice(0, 3) || [],
+            }),
           });
         }
-
-        await PriceHistory.create({
-          dish_id: dish.id,
-          price: itemData.price,
-          original_price: itemData.original_price,
-          discount_percent: itemData.discount_percent,
-          availability: true
-        });
-
-        savedCount++;
-      } catch (error) {
-        console.error('Error saving item:', error.message);
+      } catch (err) {
+        console.error(
+          `❌ Edamam failed for ${cuisine}:`,
+          err.response?.data || err.message
+        );
+        // Continue with next cuisine instead of trying v1 fallback
       }
+
+      await this.delay(1000); // Rate limiting
     }
 
-    console.log(`💾 Saved ${savedCount} items to database`);
+    return scrapedItems;
+  }
+  // ...existing code...
+
+  async generateMockData(location = "Mumbai") {
+    const items = [
+      {
+        name: "Butter Chicken",
+        cuisine: "Indian",
+        basePrice: 320,
+        platform: "mock",
+      },
+      {
+        name: "Margherita Pizza",
+        cuisine: "Italian",
+        basePrice: 299,
+        platform: "mock",
+      },
+      {
+        name: "Chicken Fried Rice",
+        cuisine: "Chinese",
+        basePrice: 180,
+        platform: "mock",
+      },
+    ];
+    return items.map((d) => ({
+      name: d.name,
+      platform: d.platform,
+      price: d.basePrice,
+      original_price: Math.round(d.basePrice * 1.15),
+      discount_percent: 10 + Math.floor(Math.random() * 20),
+      rating: 4.0 + Math.random() * 1.0,
+      restaurant_store_name: "Mock",
+      category: "food",
+      cuisine: d.cuisine || "multi-cuisine",
+      location,
+      platform_url: null,
+      description: `${d.name} - mock item`,
+      image_url: null,
+      dietary_info: JSON.stringify({}),
+    }));
+  }
+
+  async scrapeAllPlatforms(location = "Mumbai") {
+    const results = { totalScraped: 0, platformResults: {}, errors: [] };
+
+    const spoon = await this.scrapeFromSpoonacular(location);
+    results.platformResults.spoonacular = spoon;
+    results.totalScraped += spoon.length;
+    await this.saveScrapedItems(spoon);
+
+    const eda = await this.scrapeFromEdamam(location);
+    results.platformResults.edamam = eda;
+    results.totalScraped += eda.length;
+    await this.saveScrapedItems(eda);
+
+    if (results.totalScraped < this.minItemsBeforeMock) {
+      const mock = await this.generateMockData(location);
+      results.platformResults.mock = mock;
+      results.totalScraped += mock.length;
+      await this.saveScrapedItems(mock);
+    }
+
+    return results;
+  }
+
+  async saveScrapedItems(items = []) {
+    if (!Array.isArray(items) || items.length === 0) return;
+    // Insert each item; use transaction per item to keep price history consistent
+    for (const item of items) {
+      try {
+        await sequelize.transaction(async (t) => {
+          const [dish] = await Dish.findOrCreate({
+            where: {
+              name: item.name,
+              platform: item.platform,
+              location: item.location || null,
+            },
+            defaults: {
+              name: item.name,
+              description: item.description || null,
+              category: item.category || "food",
+              brand: item.brand || null,
+              image_url: item.image_url || null,
+              platform: item.platform,
+              platform_item_id: item.platform_item_id || null,
+              restaurant_store_name: item.restaurant_store_name || null,
+              price: item.price,
+              original_price: item.original_price || null,
+              discount_percent: item.discount_percent || null,
+              rating: item.rating || null,
+              availability:
+                item.availability !== undefined ? item.availability : true,
+              location: item.location || null,
+              cuisine: item.cuisine || null,
+              dietary_info:
+                typeof item.dietary_info === "string"
+                  ? item.dietary_info
+                  : JSON.stringify(item.dietary_info || {}),
+              platform_url: item.platform_url || null,
+            },
+            transaction: t,
+          });
+
+          // update dish if existed to reflect latest price
+          await dish.update(
+            {
+              price: item.price,
+              original_price: item.original_price,
+              discount_percent: item.discount_percent,
+              rating: item.rating,
+              availability: true,
+              updated_at: new Date(),
+            },
+            { transaction: t }
+          );
+
+          // Create price history
+          await PriceHistory.create(
+            {
+              dish_id: dish.id,
+              price: item.price,
+              original_price: item.original_price,
+              discount_percent: item.discount_percent,
+              availability:
+                item.availability !== undefined ? item.availability : true,
+            },
+            { transaction: t }
+          );
+        });
+      } catch (err) {
+        console.error("saveScrapedItems error:", err.message);
+      }
+    }
+  }
+
+  estimatePrice(servings = 2, ingredientCount = 5) {
+    const basePrice = 60;
+    const perServing = 60;
+    const perIngredient = 10;
+    return Math.round(
+      basePrice + servings * perServing + ingredientCount * perIngredient
+    );
+  }
+
+  detectCuisineFromRecipe(recipe = {}) {
+    const title = (recipe.title || recipe.label || "").toLowerCase();
+    if (!title) return "multi-cuisine";
+    if (
+      title.includes("curry") ||
+      title.includes("biryani") ||
+      title.includes("tikka")
+    )
+      return "Indian";
+    if (title.includes("pizza") || title.includes("pasta")) return "Italian";
+    if (title.includes("rice") || title.includes("noodle")) return "Chinese";
+    return "multi-cuisine";
   }
 
   delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((r) => setTimeout(r, ms));
   }
 
-  async triggerManualScrape(location = 'Mumbai') {
-    return await this.scrapeAllPlatforms(location);
+  async triggerManualScrape(location = "Mumbai") {
+    console.log(
+      "MANUAL SCRAPPING//////////////////////////////////////////////"
+    );
+    return this.scrapeAllPlatforms(location);
   }
 }
 
 module.exports = new ScrapingService();
+// ...existing code...

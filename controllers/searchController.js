@@ -5,7 +5,7 @@ exports.searchDishes = async (req, res, next) => {
   try {
     const { query, location, sortBy, ...filters } = req.query;
     const userId = req.user?.id;
-    
+    console.log("REQ QUERY-----",req.query)
     const result = await searchService.searchDishes({
       query,
       location,

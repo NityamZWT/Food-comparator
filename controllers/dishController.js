@@ -34,7 +34,7 @@ exports.getPriceHistory = async (req, res, next) => {
 
 exports.createDish = async (req, res, next) => {
   try {
-    const dish = await dishService.createDish(req.body);
+    const dish = await dishService.addDish(req.body);
     response.created(res, 'Dish created successfully', dish);
   } catch (error) {
     next(error);

@@ -5,7 +5,8 @@ exports.authValidation = {
     name: Joi.string().min(2).max(100).required(),
     email: Joi.string().email().required(),
     password: Joi.string().min(6).required(),
-    location: Joi.string().optional()
+    location: Joi.string().optional(),
+    role: Joi.string().optional()
   }),
 
   login: Joi.object({

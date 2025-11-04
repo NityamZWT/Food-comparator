@@ -1,0 +1,472 @@
+{
+	"info": {
+		"_postman_id": "food-comparator-collection",
+		"name": "Food Comparator API Tests",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						}
+					},
+					"test": "pm.test(\"User Registration Successful\", function () {\n    pm.response.to.have.status(201);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"User registered successfully\");\n    pm.expect(pm.response.json().data).to.have.property(\"token\");\n});"
+				},
+				{
+					"name": "Login User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"john@example.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						}
+					},
+					"test": "pm.test(\"Login Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"Login successful\");\n    pm.expect(pm.response.json().data).to.have.property(\"token\");\n    pm.environment.set(\"accessToken\", pm.response.json().data.token);\n});"
+				},
+				{
+					"name": "Invalid Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"john@example.com\",\n    \"password\": \"wrongpassword\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						}
+					},
+					"test": "pm.test(\"Login Failed with Invalid Password\", function () {\n    pm.response.to.have.status(401);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().error).to.equal(\"Invalid email or password\");\n});"
+				}
+			]
+		},
+		{
+			"name": "Dishes",
+			"item": [
+				{
+					"name": "Get All Dishes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dishes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dishes"]
+						}
+					},
+					"test": "pm.test(\"Get All Dishes Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"Dishes retrieved successfully\");\n    pm.expect(pm.response.json().data).to.be.an(\"array\");\n});"
+				},
+				{
+					"name": "Get Dish by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dishes/1",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dishes", "1"]
+						}
+					},
+					"test": "pm.test(\"Get Dish by ID Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().data).to.have.property(\"id\", 1);\n});"
+				},
+				{
+					"name": "Get Dish by ID (Not Found)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dishes/999",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dishes", "999"]
+						}
+					},
+					"test": "pm.test(\"Get Dish by ID Not Found\", function () {\n    pm.response.to.have.status(404);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().error).to.equal(\"Dish not found\");\n});"
+				},
+				{
+					"name": "Create Dish",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Paneer Butter Masala\",\n    \"description\": \"Rich and creamy Indian curry\",\n    \"category\": \"food\",\n    \"brand\": \"Home-made\",\n    \"platform\": \"swiggy\",\n    \"price\": 250,\n    \"original_price\": 300,\n    \"discount_percent\": 17,\n    \"rating\": 4.5,\n    \"location\": \"Mumbai\",\n    \"cuisine\": \"Indian\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dishes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dishes"]
+						}
+					},
+					"test": "pm.test(\"Create Dish Successful\", function () {\n    pm.response.to.have.status(201);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"Dish created successfully\");\n    pm.expect(pm.response.json().data).to.have.property(\"name\", \"Paneer Butter Masala\");\n});"
+				},
+				{
+					"name": "Update Dish",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"price\": 270,\n    \"discount_percent\": 10\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dishes/1",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dishes", "1"]
+						}
+					},
+					"test": "pm.test(\"Update Dish Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"Dish updated successfully\");\n    pm.expect(pm.response.json().data).to.have.property(\"price\", 270);\n    pm.expect(pm.response.json().data).to.have.property(\"discount_percent\", 10);\n});"
+				},
+				{
+					"name": "Delete Dish",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/dishes/1",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dishes", "1"]
+						}
+					},
+					"test": "pm.test(\"Delete Dish Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"Dish deleted successfully\");\n});"
+				}
+			]
+		},
+		{
+			"name": "Search",
+			"item": [
+				{
+					"name": "Search Dishes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/search/dishes?query=pizza&location=Mumbai",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "search", "dishes"],
+							"query": [
+								{
+									"key": "query",
+									"value": "pizza"
+								},
+								{
+									"key": "location",
+									"value": "Mumbai"
+								}
+							]
+						}
+					},
+					"test": "pm.test(\"Search Dishes Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"Search completed successfully\");\n    pm.expect(pm.response.json().data).to.have.property(\"dishes\");\n    pm.expect(pm.response.json().data.dishes).to.be.an(\"array\");\n});"
+				},
+				{
+					"name": "Get Search Suggestions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/search/suggestions?query=ita",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "search", "suggestions"],
+							"query": [
+								{
+									"key": "query",
+									"value": "ita"
+								}
+							]
+						}
+					},
+					"test": "pm.test(\"Get Search Suggestions Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"Suggestions retrieved successfully\");\n    pm.expect(pm.response.json().data).to.be.an(\"array\");\n});"
+				},
+				{
+					"name": "Get Trending Searches",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/search/trending",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "search", "trending"]
+						}
+					},
+					"test": "pm.test(\"Get Trending Searches Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"Trending searches retrieved successfully\");\n    pm.expect(pm.response.json().data).to.be.an(\"array\");\n});"
+				}
+			]
+		},
+		{
+			"name": "Recommendations",
+			"item": [
+				{
+					"name": "Get Recommendations",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/recommendations/personalized?location=Mumbai&limit=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "recommendations", "personalized"],
+							"query": [
+								{
+									"key": "location",
+									"value": "Mumbai"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"test": "pm.test(\"Get Recommendations Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"AI Recommendations generated successfully\");\n    pm.expect(pm.response.json().data).to.have.property(\"recommendations\");\n    pm.expect(pm.response.json().data.recommendations).to.be.an(\"array\");\n});"
+				},
+				{
+					"name": "Get Meal Suggestions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/recommendations/suggestions?location=Mumbai&mealType=lunch",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "recommendations", "suggestions"],
+							"query": [
+								{
+									"key": "location",
+									"value": "Mumbai"
+								},
+								{
+									"key": "mealType",
+									"value": "lunch"
+								}
+							]
+						}
+					},
+					"test": "pm.test(\"Get Meal Suggestions Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"Personalized lunch suggestions\");\n    pm.expect(pm.response.json().data).to.have.property(\"recommendations\");\n});"
+				},
+				{
+					"name": "Save Recommendation Feedback",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"dishName\": \"Paneer Butter Masala\",\n    \"liked\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/recommendations/feedback",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "recommendations", "feedback"]
+						}
+					},
+					"test": "pm.test(\"Save Recommendation Feedback Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"Feedback saved successfully\");\n});"
+				},
+				{
+					"name": "Update User Preferences",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"cuisinePreferences\": [\"Indian\", \"Italian\"],\n    \"dietaryRestrictions\": [\"Vegetarian\"],\n    \"priceRange\": { \"min\": 100, \"max\": 500 },\n    \"budget\": 300\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/recommendations/preferences",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "recommendations", "preferences"]
+						}
+					},
+					"test": "pm.test(\"Update User Preferences Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"Preferences updated successfully\");\n    pm.expect(pm.response.json().data.preferences).to.have.property(\"cuisinePreferences\");\n});"
+				}
+			]
+		},
+		{
+			"name": "Admin",
+			"item": [
+				{
+					"name": "Trigger Scraping",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"location\": \"Mumbai\",\n    \"immediate\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/scrape/trigger",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "scrape", "trigger"]
+						}
+					},
+					"test": "pm.test(\"Trigger Scraping Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"Scraping completed successfully\");\n    pm.expect(pm.response.json().data).to.have.property(\"totalScraped\");\n});"
+				},
+				{
+					"name": "Get Scraping Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/scrape/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "scrape", "status"]
+						}
+					},
+					"test": "pm.test(\"Get Scraping Status Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"Scraping status retrieved\");\n    pm.expect(pm.response.json().data).to.have.property(\"isRunning\");\n});"
+				},
+				{
+					"name": "Get Scraping Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/scrape/stats",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "scrape", "stats"]
+						}
+					},
+					"test": "pm.test(\"Get Scraping Stats Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"Scraping stats retrieved\");\n    pm.expect(pm.response.json().data).to.have.property(\"totalRuns\");\n});"
+				},
+				{
+					"name": "Get Public Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/scrape/public-status",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "scrape", "public-status"]
+						}
+					},
+					"test": "pm.test(\"Get Public Status Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().message).to.equal(\"Public scraping status retrieved\");\n    pm.expect(pm.response.json().data).to.have.property(\"isRunning\");\n});"
+				}
+			]
+		},
+		{
+			"name": "System Health",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "health"]
+						}
+					},
+					"test": "pm.test(\"Health Check Successful\", function () {\n    pm.response.to.have.status(200);\n    pm.response.to.be.json;\n    pm.expect(pm.response.json().status).to.equal(\"ok\");\n    pm.expect(pm.response.json()).to.have.property(\"database\", \"connected\");\n});"
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5000",
+			"type": "string"
+		}
+	]
+}
