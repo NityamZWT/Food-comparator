@@ -1,17 +1,19 @@
+const scrapingService = require('../services/scrapingService');
 const searchService = require('../services/searchService');
 const response = require('../utils/response');
 
 exports.searchDishes = async (req, res, next) => {
   try {
-    const { query, location, sortBy, ...filters } = req.query;
+    const { query, location, cuisine, size, page, ...filters } = req.query;
     const userId = req.user?.id;
-    console.log("REQ QUERY-----",req.query)
-    const result = await searchService.searchDishes({
+    // console.log("REQ QUERY-----",req.query)
+    // console.log("REQ filter-----",filters)
+    const result = await scrapingService.scrapeForSearch({
       query,
       location,
-      sortBy,
       filters,
-      userId
+      size,
+      page,
     });
     
     response.success(res, 'Search completed successfully', result);

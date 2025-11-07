@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 require('dotenv').config();
+const compression = require('compression')
 
 const sequelize = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
@@ -34,6 +35,26 @@ app.use(cors({
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+//compression
+app.use(compression({
+  threshold: 1024,
+  level: 6,
+  filter: (req, res) => {
+    // Skip compression for certain conditions
+    if (req.path.includes('/health-check')) {
+      return false;
+    }
+    
+    // Don't compress if already compressed
+    if (res.getHeader('Content-Encoding')) {
+      return false;
+    }
+    
+    return compression.filter(req, res);
+  },
+  log: "//////////////////////////COMPRESSION HAPPENS//////////////////////////"
+}))
 
 // Logging
 app.use(loggingMiddleware);

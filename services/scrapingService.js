@@ -320,6 +320,69 @@ class ScrapingService {
     );
     return this.scrapeAllPlatforms(location);
   }
+
+  async scrapeForSearch({query, cuisine, location, size, page, filters = {}}) {
+    const scrapedItems = [];
+    if (!this.apiKeys.spoonacular) return scrapedItems;
+
+    console.log("filter destructuring....", {query, cuisine, location, size, page, ...filters})
+     let filterAttributes = {...filters}
+    console.log("filter destructed....", filterAttributes)
+
+    try {
+      const res = await axios.get(
+        "https://api.spoonacular.com/recipes/complexSearch",
+        {
+          params: {
+            apiKey: this.apiKeys.spoonacular,
+            number: size,
+            offset: page,
+            tags: "breakfast,lunch,dinner",
+            query,
+            cuisine,
+            ...filters
+          },
+          timeout: 15000,
+        }
+      );
+      console.log("RESPONSE : ", res.data);
+      
+      for (const recipe of res.data.results || []) {
+        const estimatedPrice = this.estimatePrice(
+          recipe.servings,
+          recipe.extendedIngredients?.length || 0
+        );
+        scrapedItems.push({
+          name: recipe.title,
+          platform: "spoonacular",
+          price: estimatedPrice,
+          original_price: Math.round(estimatedPrice * 1.2),
+          discount_percent: 15,
+          rating: 4.0 + Math.random() * 1.0,
+          restaurant_store_name: "Spoonacular",
+          category: "food",
+          cuisine: this.detectCuisineFromRecipe(recipe),
+          location,
+          platform_url: recipe.sourceUrl,
+          description: (recipe.summary || "")
+            .replace(/<[^>]+>/g, "")
+            .slice(0, 300),
+          image_url: recipe.image || null,
+          dietary_info: JSON.stringify({
+            vegetarian: !!recipe.vegetarian,
+            vegan: !!recipe.vegan,
+            glutenFree: !!recipe.glutenFree,
+            servings: recipe.servings,
+          }),
+        });
+      }
+    } catch (err) {
+      console.error("Spoonacular error:", err.message);
+    }
+    console.log("SCRAPE DATA : ", scrapedItems);
+    
+    return scrapedItems;
+  }
 }
 
 module.exports = new ScrapingService();
