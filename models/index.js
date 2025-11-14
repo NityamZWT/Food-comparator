@@ -22,10 +22,10 @@ const models = {
 };
 
 // call associate exported by each module (if present) with the initialized models
-if (typeof UserModel.associate === 'function') UserModel.associate(models);
-if (typeof DishModel.associate === 'function') DishModel.associate(models);
-if (typeof PriceHistoryModel.associate === 'function') PriceHistoryModel.associate(models);
-if (typeof SearchHistoryModel.associate === 'function') SearchHistoryModel.associate(models);
+if (User.associate) User.associate(models);
+if (Dish.associate) Dish.associate(models);
+if (PriceHistory.associate) PriceHistory.associate(models);
+if (SearchHistory.associate) SearchHistory.associate(models);
 
 module.exports = {
   ...models,

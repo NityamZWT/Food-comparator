@@ -1,5 +1,5 @@
-const { Dish, SearchHistory, sequelize } = require('../models');
-const { Op } = require('sequelize');
+const { Dish, SearchHistory, sequelize } = require("../models");
+const { Op } = require("sequelize");
 
 class SearchService {
   async searchDishes({ query, location, sortBy, filters, userId }) {
@@ -9,12 +9,12 @@ class SearchService {
     }
 
     // Use dishService to get dishes
-    const dishService = require('./dishService');
+    const dishService = require("./dishService");
     const result = await dishService.getDishes({
       query,
       location,
       sortBy,
-      ...filters
+      ...filters,
     });
 
     // Update search history with result count
@@ -27,29 +27,37 @@ class SearchService {
 
   async saveSearchHistory(userId, query, filters, location) {
     try {
-      await SearchHistory.create({
+      // Check if same user + query already exists
+      const existing = await SearchHistory.findOne({
+        where: {
+          user_id: userId,
+          search_query: query,
+        },
+      });
+
+      if (existing) {
+        // update + increment count
+        const updatedCount = existing.results_count + 1;
+
+        await existing.update({
+          filters: JSON.stringify(filters || {}),
+          location,
+          results_count: updatedCount,
+        });
+
+        return existing;
+      }
+
+      // if not exists, create new
+      return await SearchHistory.create({
         user_id: userId,
         search_query: query,
-        filters: filters || {},
-        location: location
+        filters: JSON.stringify(filters || {}),
+        location,
+        results_count: 1,
       });
     } catch (error) {
-      console.error('Error saving search history:', error);
-    }
-  }
-
-  async updateSearchResultsCount(userId, query, count) {
-    try {
-      const latestSearch = await SearchHistory.findOne({
-        where: { user_id: userId, search_query: query },
-        order: [['created_at', 'DESC']]
-      });
-
-      if (latestSearch) {
-        await latestSearch.update({ results_count: count });
-      }
-    } catch (error) {
-      console.error('Error updating search results count:', error);
+      console.error("Error saving search history:", error);
     }
   }
 
@@ -61,35 +69,35 @@ class SearchService {
     const dishes = await Dish.findAll({
       where: {
         name: {
-          [Op.like]: `%${query}%`
-        }
+          [Op.like]: `%${query}%`,
+        },
       },
       attributes: [
-        'name',
-        [sequelize.fn('COUNT', sequelize.col('name')), 'count']
+        "name",
+        [sequelize.fn("COUNT", sequelize.col("name")), "count"],
       ],
-      group: ['name'],
-      order: [[sequelize.literal('count'), 'DESC']],
-      limit: 10
+      group: ["name"],
+      order: [[sequelize.literal("count"), "DESC"]],
+      limit: 10,
     });
 
-    return dishes.map(dish => dish.name);
+    return dishes.map((dish) => dish.name);
   }
 
   async getTrendingSearches() {
     const trending = await SearchHistory.findAll({
       attributes: [
-        'search_query',
-        [sequelize.fn('COUNT', sequelize.col('search_query')), 'search_count']
+        "search_query",
+        [sequelize.fn("COUNT", sequelize.col("search_query")), "search_count"],
       ],
       where: {
         created_at: {
-          [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
-        }
+          [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
+        },
       },
-      group: ['search_query'],
-      order: [[sequelize.literal('search_count'), 'DESC']],
-      limit: 10
+      group: ["search_query"],
+      order: [[sequelize.literal("search_count"), "DESC"]],
+      limit: 10,
     });
 
     return trending;
@@ -98,19 +106,19 @@ class SearchService {
   async getSearchHistory(userId) {
     return await SearchHistory.findAll({
       where: { user_id: userId },
-      order: [['created_at', 'DESC']],
-      limit: 20
+      order: [["created_at", "DESC"]],
+      limit: 20,
     });
   }
 
   async clearSearchHistory(id, userId) {
-    if (id === 'all') {
+    if (id === "all") {
       await SearchHistory.destroy({ where: { user_id: userId } });
     } else {
       const search = await SearchHistory.findOne({
-        where: { id, user_id: userId }
+        where: { id, user_id: userId },
       });
-      
+
       if (search) {
         await search.destroy();
       }

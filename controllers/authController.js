@@ -1,9 +1,9 @@
-const authService = require('../services/authService');
+const userService = require('../services/userService');
 const response = require('../utils/response');
 
 exports.register = async (req, res, next) => {
   try {
-    const result = await authService.register(req.body);
+    const result = await userService.register(req.body);
     response.created(res, 'User registered successfully', result);
   } catch (error) {
     next(error);
@@ -13,7 +13,7 @@ exports.register = async (req, res, next) => {
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    const result = await authService.login(email, password);
+    const result = await userService.login(email, password);
     response.success(res, 'Login successful', result);
   } catch (error) {
     next(error);
@@ -23,7 +23,7 @@ exports.login = async (req, res, next) => {
 exports.refreshToken = async (req, res, next) => {
   try {
     const { refreshToken } = req.body;
-    const result = await authService.refreshToken(refreshToken);
+    const result = await userService.refreshToken(refreshToken);
     response.success(res, 'Token refreshed', result);
   } catch (error) {
     next(error);
