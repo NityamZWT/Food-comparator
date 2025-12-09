@@ -1,5 +1,5 @@
 const scrapingService = require('../services/scrapingService');
-const scrapingJob = require('../jobs/scrapingJob');
+const scrapingJob = require('../scheduler/scrapingJob');
 const response = require('../utils/response');
 const { sequelize, Dish, PriceHistory } = require('../models'); // added sequelize import
 

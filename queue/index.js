@@ -1,23 +1,24 @@
-// queue/index.js
-const redisClient = require("../config/redis");
-
 async function createQueues() {
     const { Queue } = await import("bullmq");
+    const bullMQConfig = require("../config/bullmq");
 
     const aiRecommendationQueue = new Queue("ai-recommendations", {
-        connection: {
-            host: "redis-16144.c323.us-east-1-2.ec2.cloud.redislabs.com",
-            port: 16144,
-            username: "default",
-            password: "iMGPKfO5bnbIUKBe8tUTgBgb39Oa4dNo",
-        },
+        connection: bullMQConfig.connection,
         defaultJobOptions: {
-            attempts: 3,
-            backoff: { type: "exponential", delay: 2000 },
+            ...bullMQConfig.defaultJobOptions,
+            priority: 10 // Higher priority
         }
     });
 
-    return { aiRecommendationQueue };
+    const emailQueue = new Queue("email-queue", {
+        connection: bullMQConfig.connection,
+        defaultJobOptions: {
+            ...bullMQConfig.defaultJobOptions,
+            priority: 5
+        }
+    });
+
+    return { aiRecommendationQueue, emailQueue };
 }
 
 module.exports = createQueues;
